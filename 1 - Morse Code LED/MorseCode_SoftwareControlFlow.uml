@@ -1,0 +1,103 @@
+@startuml
+autonumber "Step "
+
+participant "loop()" as loop
+participant "processInput()" as processInput
+participant "processNewString()" as processNewString
+participant "insertAtEnd(char)" as insertAtEnd
+participant "createNode(char)" as createNode
+participant "clearList()" as clearList
+participant "switchMorse(char)" as switchMorse
+participant "blink()" as blink
+participant "dash()" as dash
+participant "space_on_short()" as shortSpace
+participant "space_on_letter()" as letterSpace
+participant "space_on_word()" as wordSpace
+
+== Arduino Loop==
+loop -> processInput : call (initial check for Serial.available)
+activate processInput
+processInput --> loop : return
+deactivate processInput
+
+== main loop (do-while) ==
+loop -> processInput : call (read serial bytes)
+activate processInput
+alt resetChar '^' received
+  processInput -> clearList : call clearList()
+  activate clearList
+  clearList --> processInput : return
+  deactivate clearList
+else termChar '\\n' received -> buffer completed
+  processInput -> processNewString : call (buffer -> linked list)
+  activate processNewString
+  loop over each char in buffer
+    processNewString -> insertAtEnd : insert(char)
+    activate insertAtEnd
+    insertAtEnd -> createNode : call (malloc, init)
+    activate createNode
+    createNode --> insertAtEnd : node*
+    deactivate createNode
+    insertAtEnd --> processNewString : return
+    deactivate insertAtEnd
+  end
+  processNewString --> processInput : return
+  deactivate processNewString
+else data appended to buffer
+  note right: processInput stores bytes into buffer\nuntil termChar or resetChar
+end
+processInput --> loop : return
+deactivate processInput
+
+loop -> loop : temp = head
+alt head != NULL
+  loop MainRoundRobin
+    loop -> processInput : call (allow interruptions while broadcasting)
+    activate processInput
+    processInput --> loop : return
+    deactivate processInput
+
+    loop -> switchMorse : call switchMorse(temp->data)
+    activate switchMorse
+
+    alt data == ' '
+      switchMorse -> space_on_word : call
+      activate wordSpace
+      wordSpace --> switchMorse : return
+      deactivate wordSpace
+    else letter/digit
+        par morse elements
+        switchMorse -> blink : call (dot)
+        activate blink
+        blink --> switchMorse : return
+        deactivate blink
+
+        switchMorse -> shortSpace : call (intra-character)
+        activate shortSpace
+        shortSpace --> switchMorse : return
+        deactivate shortSpace
+
+        switchMorse -> dash : call (dash)
+        activate dash
+        dash --> switchMorse : return
+        deactivate dash
+
+        switchMorse -> letterSpace : call (end-of-letter spacing)
+        activate letterSpace
+        letterSpace --> switchMorse : return
+        deactivate letterSpace
+      end
+    end
+
+    switchMorse --> loop : return
+    deactivate switchMorse
+
+    loop -> loop : temp = temp->next
+end
+
+alt head == NULL
+  loop -> loop : no data -> idle/delay
+end
+
+loop -> loop : delay(500ms) / repeat
+@enduml
